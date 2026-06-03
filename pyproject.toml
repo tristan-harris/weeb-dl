@@ -1,0 +1,14 @@
+[project]
+name = "weeb-dl"
+version = "1.0"
+description = "Download manga/manhwa/manhua from weebcentral.com"
+requires-python = ">=3.14"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "colorama>=0.4.6",
+    "notify-py>=0.3.43",
+    "platformdirs>=4.10.0",
+    "pypdf>=6.12.2",
+    "requests>=2.34.2",
+    "ttkbootstrap>=1.20.3",
+]
