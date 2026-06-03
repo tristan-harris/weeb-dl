@@ -17,14 +17,7 @@ from pypdf import PdfWriter
 import data
 import util
 
-# selects the max_page value found in the JS of a chapter page
-MAX_PAGE_REGEX = r"max_page:\s*parseInt\('(\d+)'\)"
-
-PAGE_NUM_REGEX = r"-(\d+)\."
-
-# TODO: is domain the right term?
-WEEB_DOMAIN = "weebcentral.com"
-WEEB_BASE_URL = f"https://{WEEB_DOMAIN}"
+WEEB_BASE_URL = f"https://weebcentral.com"
 
 REQUESTS_MAX_RETRIES = 4
 REQUESTS_TIMEOUT = 60  # network request timeout (seconds)
@@ -94,23 +87,10 @@ class WeebDownloader:
 
         os.chdir(download_dir)
 
-        # if entire url provided, extract ID
-        if WEEB_DOMAIN in series:
-            series_id = util.get_id_from_series_url(series)
-        else:
-            series_id = series
+        series_id = util.get_id_from_series_url(series)
 
         session = requests.Session()
         session.headers.update(self.headers)
-
-        params = {"is_prev": "False", "reading_style": "long_strip"}
-        response = session.get(
-            f"{WEEB_BASE_URL}/chapters/01J76XYZJ6BTZCRXJZ11JH9JSK/images",
-            params=params,
-            timeout=REQUESTS_TIMEOUT,
-        )
-        print(response.text)
-        self._completion_message()
 
         series_title: str = ""
         series_status: str = ""
@@ -202,44 +182,26 @@ class WeebDownloader:
         chapter_ids = chapter_ids[:2]
 
         for chapter_idx, chapter_id in enumerate(chapter_ids):
+            params = {"is_prev": "False", "reading_style": "long_strip"}
             response = session.get(
-                f"{WEEB_BASE_URL}/chapters/{chapter_id}", timeout=REQUESTS_TIMEOUT
+                f"{WEEB_BASE_URL}/chapters/{chapter_id}/images",
+                params=params,
+                timeout=REQUESTS_TIMEOUT,
             )
             self._validate_response(response)
 
             soup = BeautifulSoup(response.text, "html.parser")
-
-            link_element = soup.find("link", attrs={"rel": "preload", "as": "image"})
-            if not link_element:
-                self._log_message("Error: Image host link element not found")
-                exit(1)
-
-            image_host_url: str = str(link_element.get("href", ""))
-            if not image_host_url:
-                self._log_message("Error: Image host link not found")
-                exit(1)
-
-            match = re.search(MAX_PAGE_REGEX, response.text)
-            if not match:
-                self._log_message("Error: Value for 'max_page' not found")
-                exit(1)
+            chapter_img_elements = soup.find_all("img")
+            chapter_image_urls = [img.get("src") for img in chapter_img_elements]
 
             # if interrupted
             if self.stop_event.is_set():
-                self._delete_dir(series_dir_path)
                 return
-
-            # number of pages in chapter
-            number_pages: int = int(match.group(1))
 
             chapter_images: list[Image.Image] = []
 
-            for page_i in range(1, number_pages + 1):
-                # substitute first page index (as part of image host URL) with current page index
-                page_url: str = re.sub(
-                    PAGE_NUM_REGEX, f"-{util.pad_num(str(page_i), 3)}.", image_host_url
-                )
-                response = session.get(page_url, timeout=REQUESTS_TIMEOUT)
+            for i, chapter_image_url in enumerate(chapter_image_urls):
+                response = session.get(chapter_image_url, timeout=REQUESTS_TIMEOUT)
                 self._validate_response(response)
 
                 img = Image.open(BytesIO(response.content))
@@ -248,7 +210,6 @@ class WeebDownloader:
 
                 # if interrupted
                 if self.stop_event.is_set():
-                    self._delete_dir(series_dir_path)
                     chapter_images.clear()
                     return
 
