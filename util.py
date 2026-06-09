@@ -4,6 +4,8 @@ from pathlib import Path
 
 from notifypy import Notify
 
+BASE_DIR = Path(__file__).resolve().parent
+
 SERIES_ID_REGEX = r"[A-Z0-9]{26}"
 SERIES_URL_REGEX = r"(https://)?weebcentral.com/series/[A-Z0-9]{26}/.+"
 
@@ -38,7 +40,7 @@ def send_notification(title: str, message: str):
     notification = Notify()
     notification.title = title
     notification.message = message
-    notification.icon = Path("assets", "icon", "app_icon.png").absolute()
+    notification.icon = Path(BASE_DIR, "assets", "icon", "app_icon.png")
     notification.send(block=False)
 
 
