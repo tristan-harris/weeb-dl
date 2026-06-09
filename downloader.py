@@ -476,14 +476,14 @@ class WeebDownloader:
 
         self._log_message(f"Downloading series '{series_metadata.title}'")
 
-        # # download images
-        # for chapter_idx, chapter in enumerate(chapters):
-        #     self._log_message(f"Downloading images for Chapter {chapter.num}")
-        #
-        #     chapter_image_urls = self._get_chapter_image_urls(chapter.id)
-        #     self._download_chapter_images(chapter, chapter_image_urls, total_chapters=len(chapters))
-        #
-        #     self._progress_message(chapter_idx + 1, len(chapters))
+        # download images
+        for chapter_idx, chapter in enumerate(chapters):
+            self._log_message(f"Downloading images for Chapter {chapter.num}")
+
+            chapter_image_urls = self._get_chapter_image_urls(chapter.id)
+            self._download_chapter_images(chapter, chapter_image_urls, total_chapters=len(chapters))
+
+            self._progress_message(chapter_idx + 1, len(chapters))
 
         # assemble output from images
         match output_format:
