@@ -1,26 +1,28 @@
 import os
 import queue
 import random
-import re
-import sys
 import threading
-from enum import Enum
+import time
+import zipfile
 from io import BytesIO
 from pathlib import Path
-from time import sleep
 
+import pikepdf
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image
-from pypdf import PdfWriter
 
-import data
 import util
+from data import *
 
-WEEB_BASE_URL = f"https://weebcentral.com"
+WEEB_BASE_URL = "https://weebcentral.com"
 
 REQUESTS_MAX_RETRIES = 4
 REQUESTS_TIMEOUT = 60  # network request timeout (seconds)
+
+# if number of chapters to be downloaded exceeds this value
+# prompt user for confirmation first
+RECOMMENDED_MAX_CHAPTER_NUM = 250
 
 # https://www.useragents.me
 USER_AGENTS = [
@@ -38,15 +40,90 @@ class WeebDownloader:
         message_queue: queue.SimpleQueue,
     ):
         self.message_queue: queue.SimpleQueue = message_queue
+
+        self.confirm_event = threading.Event()
         self.stop_event = threading.Event()
 
-        self.headers = {
+        headers = {
             "Referer": WEEB_BASE_URL,
             "User-Agent": random.choice(USER_AGENTS),
         }
 
+        self.session = requests.Session()
+        self.session.headers.update(headers)
+
+    def _get_response(self, url: str, params: dict | None = None) -> requests.Response:  # ty: ignore[invalid-return-type]
+        """Make a GET request with retries, exponential backoff + jitter."""
+        for attempt in range(REQUESTS_MAX_RETRIES):
+            try:
+                response = self.session.get(
+                    url,
+                    params=params or {},
+                    timeout=REQUESTS_TIMEOUT,
+                )
+                response.raise_for_status()
+                return response
+
+            except requests.RequestException as error:
+                is_last_attempt = attempt == REQUESTS_MAX_RETRIES - 1
+
+                if is_last_attempt:
+                    self._log_message(
+                        f"Failed to request '{url}' after {REQUESTS_MAX_RETRIES} attempts: {error}"
+                    )
+                    raise
+
+                if isinstance(error, requests.HTTPError) and error.response is not None:
+                    status = error.response.status_code
+                    if 400 <= status < 500:  # client errors (4xx) won't be retried
+                        self._log_message(
+                            f"Error: Client error {status} for '{url}' - not retrying"
+                        )
+                        raise
+
+                self._log_message(
+                    f"Request to '{url}' failed (attempt {attempt + 1}/{REQUESTS_MAX_RETRIES}): {type(error).__name__} - retrying"
+                )
+
+                # exponential backoff with jitter
+                backoff = (2**attempt) * 0.5 + random.uniform(0, 0.5)
+                time.sleep(min(backoff, 10))  # cap at 10 seconds
+
+    def _get_chapter_output_str(
+        self,
+        title: str = "",
+        num: str = "",
+        start: str = "",
+        end: str = "",
+        total_chapters: int = 0,
+    ) -> str:
+
+        chapter_digits = util.number_digits(total_chapters)
+
+        if num:
+            output_str = f"Chapter {util.pad_num(num, chapter_digits)}"
+        elif start and end and start == end:
+            output_str = f"Chapter {util.pad_num(start, chapter_digits)}"
+        elif start and end:
+            output_str = f"Chapters {util.pad_num(start, chapter_digits)}-{util.pad_num(end, chapter_digits)}"
+
+        if title:
+            if output_str:
+                output_str = f"{title} - {output_str}"
+            else:
+                output_str = title
+
+        if not output_str:
+            raise Exception(
+                f"Error: Could not create output string (title={title}, num={num}, start={start}, end={end})"
+            )
+
+        return output_str
+
     def _delete_dir(self, path: Path):
         """Recursively delete directory"""
+        self._log_message(f"Deleting folder '{path}'")
+
         if not path.exists():
             return
 
@@ -57,50 +134,29 @@ class WeebDownloader:
                 sub_path.unlink()
         path.rmdir()
 
-    def _validate_response(self, response: requests.Response):
-        if response.status_code != 200:
-            self._log_message(
-                f"Error: Recieved status code of {response.status_code} for requested URL {response.url}"
-            )
-            exit(1)
-
     def _log_message(self, text: str):
-        self.message_queue.put(data.LogMessage(text))
+        self.message_queue.put(LogMessage(text))
 
     def _error_message(self, text: str):
-        self.message_queue.put(data.ErrorMessage(text))
+        self.message_queue.put(ErrorMessage(text))
+
+    def _selection_confirm_message(
+        self, num_chapters: int, num_chapters_recommended: int, series_title: str
+    ):
+        self.message_queue.put(
+            SelectionConfirmationMessage(num_chapters, num_chapters_recommended, series_title)
+        )
 
     def _progress_message(self, current_chapter_index: int, total_chapters: int):
-        self.message_queue.put(
-            data.DownloadProgressMessage(current_chapter_index, total_chapters)
-        )
+        self.message_queue.put(DownloadProgressMessage(current_chapter_index, total_chapters))
 
-    def _completion_message(self):
-        self.message_queue.put(data.CompletionMessage())
+    def _completion_message(self, title: str):
+        self.message_queue.put(CompletionMessage(title))
 
-    def download(self, series: str, download_dir: str):
-        self.stop_event.clear()
+    def _get_series_metadata(self, series_id: str) -> WeebSeriesMetadata:
+        self._log_message("Requesting series metadata")
+        response = self._get_response(f"{WEEB_BASE_URL}/series/{series_id}")
 
-        if not util.is_valid_series(series):
-            self._log_message(f"Error: Invalid series '{series}'")
-            exit(1)
-
-        os.chdir(download_dir)
-
-        series_id = util.get_id_from_series_url(series)
-
-        session = requests.Session()
-        session.headers.update(self.headers)
-
-        series_title: str = ""
-        series_status: str = ""
-
-        response = session.get(
-            f"{WEEB_BASE_URL}/series/{series_id}", timeout=REQUESTS_TIMEOUT
-        )
-        self._validate_response(response)
-
-        # === MAIN PAGE ===
         soup: BeautifulSoup = BeautifulSoup(response.text, "html.parser")
 
         # get series title
@@ -108,147 +164,386 @@ class WeebDownloader:
         if title_h1 and title_h1.string:
             series_title = title_h1.string
         else:
-            self._log_message("Error: Could not access series title")
-            exit(1)
+            raise Exception("Error: Series title not found")
+
+        series_title_sanitized = util.sanitize_series_title(series_title)
 
         # get series status
         statuses: list[str] = ["Ongoing", "Complete", "Hiatus", "Canceled"]
         for status in statuses:
             match = soup.find(string=status)
             if match:
-                series_status = status
-                break
+                series_status = WeebSeriesStatus(status)
 
         if not series_status:
-            self._error_message("Error: Series status not found")
-            return
+            raise Exception("Error: Series status not found")
+
+        return WeebSeriesMetadata(series_title, series_title_sanitized, series_status)
+
+    def _get_series_chapters(self, series_id: str) -> list[WeebChapter]:
+        self._log_message("Requesting series chapter list")
+        response = self._get_response(
+            f"{WEEB_BASE_URL}/series/{series_id}/full-chapter-list",
+        )
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        chapters: list[WeebChapter] = []
+
+        chapter_divs = soup.find_all("div", class_="flex items-center")
+
+        for chapter_div in chapter_divs:
+            chapter_id: str | None = None
+
+            # parse chapter id
+            link_element = chapter_div.find("a")
+
+            if not link_element:
+                continue
+
+            link = str(link_element.get("href"))
+            if f"{WEEB_BASE_URL}/chapters" in link:
+                chapter_id = link.replace(f"{WEEB_BASE_URL}/chapters/", "")
+
+            # parse chapter number
+            span_parent_element = chapter_div.find("span", class_="grow flex items-center gap-2")
+            if not span_parent_element:
+                continue
+
+            span_child_element = span_parent_element.find("span", class_="")
+            if not span_child_element:
+                continue
+
+            chapter_listing = span_child_element.text
+
+            # extract chapter number from listing (e.g. 'Chapter 2.5' -> '2.5')
+            chapter_num: str | None = util.extract_num(chapter_listing)
+
+            if chapter_id and chapter_num:
+                chapters.append(WeebChapter(id=chapter_id, num=chapter_num))
+
+        # so that first chapter in list is first in series
+        chapters.reverse()
+
+        return chapters
+
+    def _get_chapter_range(
+        self, chapters: list[WeebChapter], start_chapter: str | None, end_chapter: str | None
+    ) -> list[WeebChapter]:
+        """Select specified range of chapters from all"""
+
+        # swap chapters if end before start
+        if start_chapter and end_chapter:
+            if float(end_chapter) < float(start_chapter):
+                start_chapter, end_chapter = end_chapter, start_chapter
+
+        selected_chapters: list[WeebChapter] = []
+
+        # whether to start adding chapters during iteration
+        add_chapters: bool = False if start_chapter else True
+
+        # to check whether given start and end chapters actually exist
+        found_start_chapter: bool = False if start_chapter else True
+        found_end_chapter: bool = False if end_chapter else True
+
+        for chapter in chapters:
+            if start_chapter and chapter.num == start_chapter:
+                add_chapters = True
+                found_start_chapter = True
+
+            if add_chapters:
+                selected_chapters.append(chapter)
+
+            if end_chapter and chapter.num == end_chapter:
+                found_end_chapter = True
+                break
+
+        if not found_start_chapter:
+            raise Exception(f"Error: Chapter {start_chapter} does not exist")
+        if not found_end_chapter:
+            raise Exception(f"Error: Chapter {end_chapter} does not exist")
+
+        return selected_chapters
+
+    def _get_chapter_image_urls(self, chapter_id: str) -> list[str]:
+        """Extract image urls from /chapters/[ID]/images at weeb central"""
+        params = {"is_prev": "False", "reading_style": "long_strip"}
+        response = self._get_response(
+            f"{WEEB_BASE_URL}/chapters/{chapter_id}/images",
+            params=params,
+        )
+
+        soup = BeautifulSoup(response.text, "html.parser")
+        chapter_img_elements = soup.find_all("img")
+        chapter_image_urls = [str(img.get("src")) for img in chapter_img_elements]
+
+        return chapter_image_urls
+
+    def _download_chapter_images(
+        self, chapter: WeebChapter, chapter_image_urls: list[str], total_chapters: int
+    ):
+        image_dir = self._get_chapter_output_str(num=chapter.num, total_chapters=total_chapters)
+        os.makedirs(image_dir, exist_ok=True)
+
+        img_idx = 1
+
+        for chapter_image_url in chapter_image_urls:
+            response = self._get_response(chapter_image_url)
+
+            with Image.open(BytesIO(response.content)) as img:
+                img = img.convert("RGB")  # consistent processing
+
+                # how many digits the number of images has
+                # used for zero-padding so that natural sorting is not required
+                digits = util.number_digits(len(chapter_image_urls))
+
+                # if image is two-page spread, use hyphenated filename
+                if img.width > img.height:
+                    img_file_name = f"{util.pad_num(str(img_idx), digits)}-{util.pad_num(str(img_idx + 1), digits)}"
+                    img_idx += 1
+                else:
+                    img_file_name = util.pad_num(str(img_idx), digits)
+
+                img_file_extension = chapter_image_url[chapter_image_url.rfind(".") :]
+
+                img.save(Path(image_dir, f"{img_file_name}{img_file_extension}"))
+
+            img_idx += 1
+
+            if self.stop_event.is_set():
+                exit()
+
+    def _assemble_pdfs(self, chapters: list[WeebChapter]):
+        for chapter in chapters:
+            self._log_message(f"Assembling PDF for {self._get_chapter_output_str(num=chapter.num)}")
+
+            img_list: list[Image.Image] = []
+            dir_path = Path(
+                self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+            )
+
+            for img_path in sorted((dir_path).glob("*")):
+                img_list.append(Image.open(img_path))
+
+            # create PDF from images
+            img_list[0].save(
+                f"{self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))}.pdf",
+                format="PDF",
+                resolution=100.0,  # DPI
+                append_images=img_list[1:],
+            )
+
+            for img in img_list:
+                img.close()
+            img_list.clear()
+
+    def _assemble_complete_pdf(
+        self,
+        chapters: list[WeebChapter],
+        title: str,
+        start_chapter: str,
+        end_chapter: str,
+    ):
+        self._log_message("Assembling final PDF")
+
+        complete_pdf = pikepdf.Pdf.new()
+
+        for chapter in chapters:
+            chapter_pdf_filename = (
+                f"{self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))}.pdf"
+            )
+
+            chapter_pdf = pikepdf.Pdf.open(chapter_pdf_filename)
+            complete_pdf.pages.extend(chapter_pdf.pages)
+            chapter_pdf.close()
+
+        # set final pdf filename based on chapter selection
+        if not start_chapter and not end_chapter:
+            complete_pdf_name = self._get_chapter_output_str(title=title)
+        else:
+            complete_pdf_name = self._get_chapter_output_str(
+                title=title,
+                start=start_chapter or chapters[0].num,
+                end=end_chapter or chapters[-1].num,
+                total_chapters=len(chapters),
+            )
+
+        complete_pdf.save(f"{complete_pdf_name}.pdf")
+
+    def _assemble_cbzs(self, chapters: list[WeebChapter]):
+        for chapter in chapters:
+            self._log_message(f"Assembling CBZ for {self._get_chapter_output_str(num=chapter.num)}")
+
+            chapter_dir_path = Path(
+                self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+            )
+
+            cbz_name = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+
+            with zipfile.ZipFile(f"{cbz_name}.cbz", "w") as cbz:
+                for image_path in chapter_dir_path.glob("*"):
+                    cbz.write(image_path, image_path.relative_to(chapter_dir_path))
+
+    def _assemble_complete_cbz(
+        self, chapters: list[WeebChapter], title: str, start_chapter: str, end_chapter: str
+    ):
+        self._log_message("Assembling CBZ")
+
+        # set cbz filename based on chapter selection
+        if not start_chapter and not end_chapter:
+            complete_cbz_name = self._get_chapter_output_str(title=title)
+        else:
+            complete_cbz_name = self._get_chapter_output_str(
+                title=title,
+                start=start_chapter or chapters[0].num,
+                end=end_chapter or chapters[-1].num,
+                total_chapters=len(chapters),
+            )
+
+        cwd = Path(".")
+
+        with zipfile.ZipFile(f"{complete_cbz_name}.cbz", "w") as cbz:
+            for chapter in chapters:
+                chapter_dir_path = Path(
+                    self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+                )
+
+                for chapter_image_path in chapter_dir_path.glob("*"):
+                    if chapter_image_path.is_file():
+                        cbz.write(chapter_image_path, chapter_image_path.relative_to(cwd))
+
+    def _download(
+        self,
+        series: str,
+        start_chapter: str,
+        end_chapter: str,
+        output_format: WeebOutputFormat,
+        download_dir: str,
+    ):
+        self.confirm_event.clear()
+        self.stop_event.clear()
+
+        if not util.is_valid_series(series):
+            raise Exception(f"Error: Invalid series '{series}'")
+
+        os.chdir(download_dir)
+
+        series_id = util.get_id_from_series_url(series)
+        if not series_id:
+            raise Exception(f"Error: Could not extract ID from '{series}'")
+
+        series_metadata = self._get_series_metadata(series_id)
+
+        if self.stop_event.is_set():
+            exit()
 
         # check if a file already exists
-        series_dir_path: Path = Path(series_title)
+        series_dir_path: Path = Path(series_metadata.title_sanitized)
         if series_dir_path.is_file():
-            self._error_message(f"Error: File already exists at '{series_title}'")
-            return
+            raise Exception(f"Error: File already exists at '{series_metadata.title_sanitized}'")
 
         try:
             os.makedirs(series_dir_path, exist_ok=True)
-            os.chdir(series_dir_path)
         except PermissionError:
-            self._error_message(
-                f"Error: Not allowed to download series at '{download_dir}'"
-            )
-            exit(1)
+            raise Exception(f"Error: Not allowed to create directory at '{download_dir}'")
+        except Exception:
+            raise Exception(f"Error: Could not create directory at '{download_dir}")
+
+        os.chdir(series_dir_path)
+
+        chapters = self._get_series_chapters(series_id)
+        if not chapters:
+            raise Exception("Error: No chapters found")
+
+        if self.stop_event.is_set():
+            exit()
+
+        # slice chapters list if range specified
+        if start_chapter or end_chapter:
+            chapters = self._get_chapter_range(chapters, start_chapter, end_chapter)
+
+        # if downloading large chapter range for single file output, warn user first
+        if len(chapters) > RECOMMENDED_MAX_CHAPTER_NUM:
+            if output_format in [WeebOutputFormat.PDF, WeebOutputFormat.CBZ]:
+                self._selection_confirm_message(
+                    len(chapters), RECOMMENDED_MAX_CHAPTER_NUM, series_metadata.title
+                )
+                # wait for confirmation or cancellation
+                while not self.confirm_event.is_set() and not self.stop_event.is_set():
+                    time.sleep(0.5)
+
+        if self.stop_event.is_set():
+            exit()
+
+        self._log_message(f"Downloading series '{series_metadata.title}'")
+
+        # # download images
+        # for chapter_idx, chapter in enumerate(chapters):
+        #     self._log_message(f"Downloading images for Chapter {chapter.num}")
+        #
+        #     chapter_image_urls = self._get_chapter_image_urls(chapter.id)
+        #     self._download_chapter_images(chapter, chapter_image_urls, total_chapters=len(chapters))
+        #
+        #     self._progress_message(chapter_idx + 1, len(chapters))
+
+        # assemble output from images
+        match output_format:
+            case WeebOutputFormat.PDF:
+                self._assemble_pdfs(chapters)
+                self._assemble_complete_pdf(
+                    chapters,
+                    series_metadata.title_sanitized,
+                    start_chapter,
+                    end_chapter,
+                )
+
+                self._log_message("Deleting intermediate images and PDFs")
+                for chapter in chapters:
+                    # dir_path_str = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+                    # self._delete_dir(Path(dir_path_str))
+
+                    pdf_filename = self._get_chapter_output_str(
+                        num=chapter.num, total_chapters=len(chapters)
+                    )
+                    os.unlink(f"{pdf_filename}.pdf")
+
+            case WeebOutputFormat.PDF_PER_CHAPTER:
+                self._assemble_pdfs(chapters)
+
+                # self._log_message("Deleting intermediate images")
+                # for chapter in chapters:
+                #     dir_path_str = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+                #     self._delete_dir(Path(dir_path_str))
+
+            case WeebOutputFormat.CBZ:
+                self._assemble_complete_cbz(
+                    chapters, series_metadata.title_sanitized, start_chapter, end_chapter
+                )
+
+            case WeebOutputFormat.CBZ_PER_CHAPTER:
+                self._assemble_cbzs(chapters)
+
+            case WeebOutputFormat.IMAGES:
+                pass
+
+        self._completion_message(series_metadata.title)
+
+    def download(
+        self,
+        series: str,
+        start_chapter: str,
+        end_chapter: str,
+        output_format: WeebOutputFormat,
+        download_dir: str,
+    ):
+        try:
+            self._download(series, start_chapter, end_chapter, output_format, download_dir)
         except Exception as e:
-            self._error_message(f"Error: {e}")
+            self._error_message(str(e))
             exit(1)
 
-        # if series is not finished, create note.txt file detailing last chapter
-        if series_status == "Ongoing" or series_status == "Hiatus":
-            # first chapter listed on website, last in series
-            latest_chapter_container = soup.find("a", href=re.compile(r"/chapters/"))
-            if not latest_chapter_container:
-                self._log_message("Error: Latest chapter not found")
-                exit(1)
-
-            latest_chapter_name = latest_chapter_container.find(  # ty: ignore[no-matching-overload]
-                "span", string=re.compile(r"\d+")
-            )
-
-            self._log_message("Creating 'notes.txt' file")
-            with open("note.txt", "w") as note_file:
-                note_file.write(f"PDF goes up to {latest_chapter_name.text}.")
-
-        # === CHAPTERS ===
-        self._log_message(f"Downloading series '{series_title}'")
-        response = session.get(
-            f"{WEEB_BASE_URL}/series/{series_id}/full-chapter-list",
-            timeout=REQUESTS_TIMEOUT,
-        )
-        self._validate_response(response)
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        chapter_ids: list[str] = []
-
-        elements = soup.find_all("a")
-        for element in elements:
-            link = str(element.get("href", ""))
-            if f"{WEEB_BASE_URL}/chapters" in link:
-                chapter_id: str = link.replace(f"{WEEB_BASE_URL}/chapters/", "")
-                chapter_ids.append(chapter_id)
-
-        # so first chapter in list is first in series
-        chapter_ids.reverse()
-
-        # HACK: temporary
-        chapter_ids = chapter_ids[:2]
-
-        for chapter_idx, chapter_id in enumerate(chapter_ids):
-            params = {"is_prev": "False", "reading_style": "long_strip"}
-            response = session.get(
-                f"{WEEB_BASE_URL}/chapters/{chapter_id}/images",
-                params=params,
-                timeout=REQUESTS_TIMEOUT,
-            )
-            self._validate_response(response)
-
-            soup = BeautifulSoup(response.text, "html.parser")
-            chapter_img_elements = soup.find_all("img")
-            chapter_image_urls = [img.get("src") for img in chapter_img_elements]
-
-            # if interrupted
-            if self.stop_event.is_set():
-                return
-
-            chapter_images: list[Image.Image] = []
-
-            for i, chapter_image_url in enumerate(chapter_image_urls):
-                response = session.get(chapter_image_url, timeout=REQUESTS_TIMEOUT)
-                self._validate_response(response)
-
-                img = Image.open(BytesIO(response.content))
-                img = img.convert("RGB")  # consistent processing
-                chapter_images.append(img)
-
-                # if interrupted
-                if self.stop_event.is_set():
-                    chapter_images.clear()
-                    return
-
-            self._log_message(
-                f"Downloaded images for chapter {chapter_idx + 1}/{len(chapter_ids)}"
-            )
-
-            # save images as PDF
-            chapter_images[0].save(
-                f"{chapter_id}.pdf",
-                format="PDF",
-                resolution=100.0,  # DPI
-                append_images=chapter_images[1:],
-            )
-
-            for img in chapter_images:
-                img.close()
-
-            self._log_message(
-                f"Assembled PDF for chapter {chapter_idx + 1}/{len(chapter_ids)}"
-            )
-            self._progress_message(chapter_idx + 1, len(chapter_ids))
-
-        # === MERGE PDFS ===
-        self._log_message("Assembling final PDF")
-
-        writer = PdfWriter()
-
-        for chapter_id in chapter_ids:
-            writer.append(f"{chapter_id}.pdf")
-        with open(f"{series_title.replace(' ', '_')}.pdf", "wb") as pdf_file:
-            writer.write(pdf_file)
-
-        # delete all other pdfs
-        for chapter_id in chapter_ids:
-            os.unlink(f"{chapter_id}.pdf")
-
-        self._completion_message()
+    def confirm(self):
+        self.confirm_event.set()
 
     def stop(self):
         self.stop_event.set()
-        self._log_message(f"Download cancelled")
+        self._log_message("Download canceled")

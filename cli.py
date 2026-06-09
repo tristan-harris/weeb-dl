@@ -2,14 +2,12 @@ import argparse
 import os
 import queue
 from threading import Thread
-from typing import Any
 
 import colorama
-import requests
 
-import data
 import util
-from downloader import WeebDownloader
+from data import *
+from downloader import RECOMMENDED_MAX_CHAPTER_NUM, WeebDownloader
 
 RESET = "\x1b[0m"
 RED = "\x1b[31m"
@@ -23,39 +21,72 @@ class WeebCLI:
         arguments = self.parse_arguments()
 
         self.series: str = arguments.series
+        self.start_chapter: str = arguments.start_chapter or ""
+        self.end_chapter: str = arguments.end_chapter or ""
 
-        self.settings = data.WeebSettings(
+        self.settings = WeebSettings(
             download_dir=arguments.download_dir,
-            output_format=arguments.output_format,
+            output_format=self.output_argument_to_enum(arguments.output_format),
             notify_on_completion=arguments.notify_upon_completion,
         )
 
         if not util.is_valid_series(self.series):
             print(f"{RED}Error: '{self.series}' is not a valid ID/URL{RESET}")
-            exit(1)
+            exit()
+
+        if self.start_chapter and not util.is_num(self.start_chapter):
+            print(f"{RED}Error: '{self.start_chapter}' is not a valid chapter number{RESET}")
+            exit()
+
+        if self.end_chapter and not util.is_num(self.end_chapter):
+            print(f"{RED}Error: '{self.end_chapter}' is not a valid chapter number{RESET}")
+            exit()
 
         self.download_thread: Thread | None = None
 
     def parse_arguments(self) -> argparse.Namespace:
         parser = argparse.ArgumentParser(
-            description="Download manga/manhwa/manhua from weebcentral.com"
+            description="Download manga/manhwa/manhua from weebcentral.com",
+            epilog=f"If a series has many chapters (for example over {RECOMMENDED_MAX_CHAPTER_NUM}), it is recommended to download only part of it at a time using the --start and --end arguments",
         )
         parser.add_argument(
-            "-d",
-            "--downloaddir",
-            dest="download_dir",
+            "-s",
+            "--start",
+            dest="start_chapter",
             type=str,
-            default=os.getcwd(),
-            help="download directory (default is current working directory)",
-            metavar="DIRECTORY",
+            help="start download from this chapter",
+            metavar="CHAPTER_NUMBER",
+        )
+        parser.add_argument(
+            "-e",
+            "--end",
+            dest="end_chapter",
+            type=str,
+            help="end download at this chapter, including this chapter",
+            metavar="CHAPTER_NUMBER",
         )
         parser.add_argument(
             "-f",
             "--format",
             dest="output_format",
             default="pdf",
-            choices=["pdf", "pdf-per-chapter", "cbz", "cb7", "images"],
+            choices=[
+                "pdf",
+                "pdf-per-chapter",
+                "cbz",
+                "cbz-per-chapter",
+                "images",
+            ],
             help="output format (default is pdf)",
+        )
+        parser.add_argument(
+            "-d",
+            "--dir",
+            dest="download_dir",
+            type=str,
+            default=os.getcwd(),
+            metavar="DIRECTORY",
+            help="download directory (default is current working directory)",
         )
         parser.add_argument(
             "-n",
@@ -72,12 +103,33 @@ class WeebCLI:
         )
         return parser.parse_args()
 
+    def output_argument_to_enum(self, output_arg: str) -> WeebOutputFormat:
+        match output_arg:
+            case "pdf":
+                return WeebOutputFormat.PDF
+            case "pdf-per-chapter":
+                return WeebOutputFormat.PDF_PER_CHAPTER
+            case "cbz":
+                return WeebOutputFormat.CBZ
+            case "cbz-per-chapter":
+                return WeebOutputFormat.CBZ_PER_CHAPTER
+            case "images":
+                return WeebOutputFormat.IMAGES
+            case _:
+                raise Exception(f"Invalid output argument '{output_arg}")
+
     def start_download(self):
         message_queue = queue.SimpleQueue()
         downloader = WeebDownloader(message_queue)
         self.download_thread = Thread(
             target=downloader.download,
-            args=(self.series, self.settings.download_dir),
+            args=(
+                self.series,
+                self.start_chapter,
+                self.end_chapter,
+                self.settings.output_format,
+                self.settings.download_dir,
+            ),
             daemon=True,
         )
         self.download_thread.start()
@@ -92,31 +144,31 @@ class WeebCLI:
                 self.handle_message(message)
 
     def handle_message(self, message):
-        if isinstance(message, data.LogMessage):
+        if isinstance(message, LogMessage):
             print(message.text)
             return
 
-        if isinstance(message, data.ErrorMessage):
+        if isinstance(message, ErrorMessage):
             print(f"{RED}{message.text}{RESET}")
             exit(1)
 
-        if isinstance(message, data.DownloadProgressMessage):
-            print(
-                f"Downloaded {message.chapters_downloaded}/{message.total_chapters} chapters"
-            )
+        if isinstance(message, SelectionConfirmationMessage):
             return
 
-        if isinstance(message, data.CompletionMessage):
+        if isinstance(message, DownloadProgressMessage):
+            return
+
+        if isinstance(message, CompletionMessage):
             if self.download_thread:
                 self.download_thread.join()
 
             if self.settings.notify_on_completion:
                 util.send_notification(
-                    "Download Complete", "weeb-dl has finished download"
+                    "Download Complete", f"weeb-dl has finished downloading '{message.title}'"
                 )
 
             print(f"{GREEN}Done{RESET}")
-            return
+            exit()
 
 
 if __name__ == "__main__":

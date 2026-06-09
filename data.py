@@ -6,8 +6,28 @@ class WeebOutputFormat(StrEnum):
     PDF = "PDF"
     PDF_PER_CHAPTER = "PDF per chapter"
     CBZ = "CBZ"
-    CB7 = "CB7"
+    CBZ_PER_CHAPTER = "CBZ per chapter"
     IMAGES = "Images"
+
+
+class WeebSeriesStatus(StrEnum):
+    ONGOING = "Ongoing"
+    COMPLETE = "Complete"
+    HIATUS = "Hiatus"
+    CANCELED = "Canceled"
+
+
+@dataclass
+class WeebSeriesMetadata:
+    title: str
+    title_sanitized: str
+    status: WeebSeriesStatus
+
+
+@dataclass
+class WeebChapter:
+    id: str  # used in URL (e.g. '01J76XZ3VG696B7Y02NABJ0XA3')
+    num: str  # as listed on weeb central (e.g. '1', '2.5')
 
 
 @dataclass
@@ -28,6 +48,13 @@ class ErrorMessage:
 
 
 @dataclass
+class SelectionConfirmationMessage:
+    num_chapters: int
+    num_chapters_recommended: int
+    series_title: str
+
+
+@dataclass
 class DownloadProgressMessage:
     chapters_downloaded: int
     total_chapters: int
@@ -35,4 +62,4 @@ class DownloadProgressMessage:
 
 @dataclass
 class CompletionMessage:
-    pass
+    title: str

@@ -1,14 +1,15 @@
-import json
+import platform
 import re
 from pathlib import Path
 
-import platformdirs
 from notifypy import Notify
-
-import data
 
 SERIES_ID_REGEX = r"[A-Z0-9]{26}"
 SERIES_URL_REGEX = r"(https://)?weebcentral.com/series/[A-Z0-9]{26}/.+"
+
+NUMBER_REGEX = r"\d+(\.\d+)?"
+
+WINDOWS_ILLEGAL_FILENAME_CHARACTERS_REGEX = r'[<>:"/\\|?*\x00-\x1f]'
 
 
 def is_valid_series(series: str) -> bool:
@@ -19,22 +20,46 @@ def is_valid_series(series: str) -> bool:
     return False
 
 
-def get_id_from_series_url(series_url: str) -> str:
+def get_id_from_series_url(series_url: str) -> str | None:
     match = re.search(SERIES_ID_REGEX, series_url)
     if match:
         return match.group(0)
-    return ""
+    return None
+
+
+def sanitize_series_title(title: str) -> str:
+    if platform.system() == "Windows":
+        title = re.sub(WINDOWS_ILLEGAL_FILENAME_CHARACTERS_REGEX, "", title)
+    title = title.strip()
+    return title
 
 
 def send_notification(title: str, message: str):
     notification = Notify()
     notification.title = title
     notification.message = message
+    notification.icon = Path("assets", "icon", "app_icon.png").absolute()
     notification.send(block=False)
 
 
-# e.g. (64, 4) -> 0064, (8.5, 4) -> 0008.5
-def pad_num(num: str, required_length: int) -> str:
+def is_num(num: str) -> bool:
+    """Returns whether number is positive integer or floating point value"""
+    num_match = re.match(f"^{NUMBER_REGEX}$", num)
+    return isinstance(num_match, re.Match)
+
+
+def extract_num(text: str) -> str | None:
+    """Extract positive integer or floating-point from string"""
+    num_match = re.search(NUMBER_REGEX, text)
+    if num_match:
+        return num_match.group(0)
+
+
+def pad_num(num: str, padding: int) -> str:
+    """
+    Pads numeric string with zeroes, ignores mantissa
+    e.g. (64, 4) -> 0064, (8.5, 4) -> 0008.5
+    """
     decimal_point_string = ""
     decimal_point_index = num.find(".")
 
@@ -42,4 +67,13 @@ def pad_num(num: str, required_length: int) -> str:
         decimal_point_string = num[decimal_point_index:]
         num = num[:decimal_point_index]
 
-    return "0" * (required_length - len(num)) + num + decimal_point_string
+    return f"{'0' * (padding - len(num))}{num}{decimal_point_string}"
+
+
+def number_digits(num: int) -> int:
+    """Returns number of digits in integer"""
+    count = 0
+    while num != 0:
+        num //= 10
+        count += 1
+    return count
