@@ -162,7 +162,7 @@ class WeebGUI(tb.Frame):
             text="All",
             variable=self.chapter_selection,
             value=WeebChapterSelection.ALL,
-            cursor="hand1",
+            cursor="hand2",
         )
         all_radio_button.grid(column=0, row=0, padx=(0, 20), sticky=W)
 
@@ -171,7 +171,7 @@ class WeebGUI(tb.Frame):
             text="Range",
             variable=self.chapter_selection,
             value=WeebChapterSelection.RANGE,
-            cursor="hand1",
+            cursor="hand2",
         )
         range_radio_button.grid(column=0, row=1, padx=(0, 20), sticky=W)
 
@@ -218,7 +218,7 @@ class WeebGUI(tb.Frame):
         notify_checkbutton = tb.Checkbutton(
             master=config_row,
             text="Notify upon completion",
-            cursor="hand1",
+            cursor="hand2",
             variable=self.notify_upon_completion,
         )
         notify_checkbutton.grid(column=1, row=1, sticky=W)
@@ -241,7 +241,7 @@ class WeebGUI(tb.Frame):
         )
 
         tb.Button(
-            master=download_row, text="📁 Browse", cursor="hand1", command=self.choose_download_dir
+            master=download_row, text="📁 Browse", cursor="hand2", command=self.choose_download_dir
         ).grid(column=6, row=1, sticky=E)
 
         buttons_frame = tb.Frame(master=download_row, padding=(0, 10, 0, 0))
@@ -250,7 +250,7 @@ class WeebGUI(tb.Frame):
         tb.Button(
             master=buttons_frame,
             text="⬇️ Download",
-            cursor="hand1",
+            cursor="hand2",
             command=self.start_download,
             bootstyle=SUCCESS,
         ).grid(column=0, row=2, sticky=W, padx=(0, 10))
@@ -258,7 +258,7 @@ class WeebGUI(tb.Frame):
         self.cancel_button = tb.Button(
             master=buttons_frame,
             text="❌ Cancel",
-            cursor="hand1",
+            cursor="hand2",
             command=self.end_download,
             state=DISABLED,
             bootstyle=DANGER,
