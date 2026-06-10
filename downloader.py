@@ -312,7 +312,7 @@ class WeebDownloader:
             if self.stop_event.is_set():
                 exit()
 
-    def _assemble_pdfs(self, chapters: list[WeebChapter]):
+    def _assemble_pdfs(self, chapters: list[WeebChapter], title: str):
         for chapter in chapters:
             self._log_message(f"Assembling PDF for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -326,7 +326,7 @@ class WeebDownloader:
 
             # create PDF from images
             img_list[0].save(
-                f"{self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))}.pdf",
+                f"{self._get_chapter_output_str(title=title, num=chapter.num, total_chapters=len(chapters))}.pdf",
                 format="PDF",
                 resolution=100.0,  # DPI
                 append_images=img_list[1:],
@@ -348,9 +348,7 @@ class WeebDownloader:
         complete_pdf = pikepdf.Pdf.new()
 
         for chapter in chapters:
-            chapter_pdf_filename = (
-                f"{self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))}.pdf"
-            )
+            chapter_pdf_filename = f"{self._get_chapter_output_str(title=title, num=chapter.num, total_chapters=len(chapters))}.pdf"
 
             chapter_pdf = pikepdf.Pdf.open(chapter_pdf_filename)
             complete_pdf.pages.extend(chapter_pdf.pages)
@@ -369,7 +367,7 @@ class WeebDownloader:
 
         complete_pdf.save(f"{complete_pdf_name}.pdf")
 
-    def _assemble_cbzs(self, chapters: list[WeebChapter]):
+    def _assemble_cbzs(self, chapters: list[WeebChapter], title: str):
         for chapter in chapters:
             self._log_message(f"Assembling CBZ for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -377,7 +375,9 @@ class WeebDownloader:
                 self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
             )
 
-            cbz_name = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
+            cbz_name = self._get_chapter_output_str(
+                title=title, num=chapter.num, total_chapters=len(chapters)
+            )
 
             with zipfile.ZipFile(f"{cbz_name}.cbz", "w") as cbz:
                 for image_path in chapter_dir_path.glob("*"):
@@ -488,7 +488,7 @@ class WeebDownloader:
         # assemble output from images
         match output_format:
             case WeebOutputFormat.PDF:
-                self._assemble_pdfs(chapters)
+                self._assemble_pdfs(chapters, series_metadata.title_sanitized)
                 self._assemble_complete_pdf(
                     chapters,
                     series_metadata.title_sanitized,
@@ -501,13 +501,16 @@ class WeebDownloader:
                     # dir_path_str = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
                     # self._delete_dir(Path(dir_path_str))
 
+                    # delete intermedia chapter pdfs
                     pdf_filename = self._get_chapter_output_str(
-                        num=chapter.num, total_chapters=len(chapters)
+                        title=series_metadata.title_sanitized,
+                        num=chapter.num,
+                        total_chapters=len(chapters),
                     )
                     os.unlink(f"{pdf_filename}.pdf")
 
             case WeebOutputFormat.PDF_PER_CHAPTER:
-                self._assemble_pdfs(chapters)
+                self._assemble_pdfs(chapters, series_metadata.title_sanitized)
 
                 # self._log_message("Deleting intermediate images")
                 # for chapter in chapters:
@@ -520,7 +523,7 @@ class WeebDownloader:
                 )
 
             case WeebOutputFormat.CBZ_PER_CHAPTER:
-                self._assemble_cbzs(chapters)
+                self._assemble_cbzs(chapters, series_metadata.title_sanitized)
 
             case WeebOutputFormat.IMAGES:
                 pass
