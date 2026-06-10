@@ -100,6 +100,8 @@ class WeebDownloader:
 
         chapter_digits = util.number_digits(total_chapters)
 
+        output_str = ""
+
         if num:
             output_str = f"Chapter {util.pad_num(num, chapter_digits)}"
         elif start and end and start == end:
@@ -155,7 +157,9 @@ class WeebDownloader:
 
     def _get_series_metadata(self, series_id: str) -> WeebSeriesMetadata:
         self._log_message("Requesting series metadata")
-        response = self._get_response(f"{WEEB_BASE_URL}/series/{series_id}")
+
+        url = f"{WEEB_BASE_URL}/series/{series_id}"
+        response = self._get_response(url)
 
         soup = BeautifulSoup(response.text, "html.parser")
 
@@ -166,19 +170,73 @@ class WeebDownloader:
         else:
             raise Exception("Error: Series title not found")
 
-        series_title_sanitized = util.sanitize_series_title(series_title)
+        metadata = WeebSeriesMetadata(title=series_title, url=url)
 
-        # get series status
-        statuses: list[str] = ["Ongoing", "Complete", "Hiatus", "Canceled"]
-        for status in statuses:
-            match = soup.find(string=status)
-            if match:
-                series_status = WeebSeriesStatus(status)
+        # attempt to extract all other metadata from HTML
+        for li_element in soup.find_all("li"):
+            strong_element = li_element.find("strong")
 
-        if not series_status:
-            raise Exception("Error: Series status not found")
+            if not strong_element:
+                continue
 
-        return WeebSeriesMetadata(series_title, series_title_sanitized, series_status)
+            match strong_element.text:
+                case "Description":
+                    element = li_element.find("p")
+                    if element:
+                        metadata.description = element.text
+
+                case "Associated Name(s)":
+                    elements = li_element.find_all("li")
+                    if elements:
+                        metadata.associated_names = [e.text for e in elements]
+
+                case "Note":
+                    element = li_element.find("p")
+                    if element:
+                        metadata.note = element.text
+
+                case "Author(s): ":
+                    elements = li_element.find_all("a")
+                    if elements:
+                        metadata.authors = [e.text for e in elements]
+
+                # [sic]
+                case "Tags(s): ":
+                    elements = li_element.find_all("a")
+                    if elements:
+                        metadata.tags = [e.text for e in elements]
+
+                case "Type: ":
+                    element = li_element.find("a")
+                    if element:
+                        metadata.type = element.text
+
+                case "Status: ":
+                    element = li_element.find("a")
+                    if element:
+                        metadata.status = element.text
+
+                case "Released: ":
+                    element = li_element.find("span")
+                    if element:
+                        metadata.released = element.text
+
+                case "Official Translation: ":
+                    element = li_element.find("a")
+                    if element:
+                        metadata.official_translation = element.text == "Yes"
+
+                case "Anime Adaptation: ":
+                    element = li_element.find("a")
+                    if element:
+                        metadata.anime_adaption = element.text == "Yes"
+
+                case "Adult Content: ":
+                    element = li_element.find("a")
+                    if element:
+                        metadata.adult_content = element.text == "Yes"
+
+        return metadata
 
     def _get_series_chapters(self, series_id: str) -> list[WeebChapter]:
         self._log_message("Requesting series chapter list")
@@ -312,7 +370,7 @@ class WeebDownloader:
             if self.stop_event.is_set():
                 exit()
 
-    def _assemble_pdfs(self, chapters: list[WeebChapter], title: str):
+    def _assemble_pdfs(self, chapters: list[WeebChapter], metadata: WeebSeriesMetadata):
         for chapter in chapters:
             self._log_message(f"Assembling PDF for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -324,13 +382,21 @@ class WeebDownloader:
             for img_path in sorted((dir_path).glob("*")):
                 img_list.append(Image.open(img_path))
 
+            pdf_file_name = f"{self._get_chapter_output_str(title=metadata.title_sanitized, num=chapter.num, total_chapters=len(chapters))}.pdf"
+
             # create PDF from images
             img_list[0].save(
-                f"{self._get_chapter_output_str(title=title, num=chapter.num, total_chapters=len(chapters))}.pdf",
+                pdf_file_name,
                 format="PDF",
                 resolution=100.0,  # DPI
                 append_images=img_list[1:],
             )
+
+            # set metadata of chapter PDF
+            with pikepdf.open(pdf_file_name) as pdf:
+                with pdf.open_metadata() as pdf_metadata:
+                    pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{WEEB_VERSION}"
+                    pdf_metadata["xmp:Producer"] = "pikepdf"
 
             for img in img_list:
                 img.close()
@@ -339,7 +405,7 @@ class WeebDownloader:
     def _assemble_complete_pdf(
         self,
         chapters: list[WeebChapter],
-        title: str,
+        metadata: WeebSeriesMetadata,
         start_chapter: str,
         end_chapter: str,
     ):
@@ -348,18 +414,22 @@ class WeebDownloader:
         complete_pdf = pikepdf.Pdf.new()
 
         for chapter in chapters:
-            chapter_pdf_filename = f"{self._get_chapter_output_str(title=title, num=chapter.num, total_chapters=len(chapters))}.pdf"
+            chapter_pdf_filename = f"{self._get_chapter_output_str(title=metadata.title_sanitized, num=chapter.num, total_chapters=len(chapters))}.pdf"
 
             chapter_pdf = pikepdf.Pdf.open(chapter_pdf_filename)
             complete_pdf.pages.extend(chapter_pdf.pages)
             chapter_pdf.close()
 
+        with complete_pdf.open_metadata() as pdf_metadata:
+            pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{WEEB_VERSION}"
+            pdf_metadata["xmp:Producer"] = "pikepdf"
+
         # set final pdf filename based on chapter selection
         if not start_chapter and not end_chapter:
-            complete_pdf_name = self._get_chapter_output_str(title=title)
+            complete_pdf_name = self._get_chapter_output_str(title=metadata.title_sanitized)
         else:
             complete_pdf_name = self._get_chapter_output_str(
-                title=title,
+                title=metadata.title_sanitized,
                 start=start_chapter or chapters[0].num,
                 end=end_chapter or chapters[-1].num,
                 total_chapters=len(chapters),
@@ -367,7 +437,7 @@ class WeebDownloader:
 
         complete_pdf.save(f"{complete_pdf_name}.pdf")
 
-    def _assemble_cbzs(self, chapters: list[WeebChapter], title: str):
+    def _assemble_cbzs(self, chapters: list[WeebChapter], metadata: WeebSeriesMetadata):
         for chapter in chapters:
             self._log_message(f"Assembling CBZ for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -375,25 +445,32 @@ class WeebDownloader:
                 self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
             )
 
+            with open(Path(chapter_dir_path, "ComicInfo.xml"), "w") as xml:
+                xml.write(metadata.to_comicinfo())
+
             cbz_name = self._get_chapter_output_str(
-                title=title, num=chapter.num, total_chapters=len(chapters)
+                title=metadata.title_sanitized, num=chapter.num, total_chapters=len(chapters)
             )
 
             with zipfile.ZipFile(f"{cbz_name}.cbz", "w") as cbz:
-                for image_path in chapter_dir_path.glob("*"):
-                    cbz.write(image_path, image_path.relative_to(chapter_dir_path))
+                for file_path in chapter_dir_path.glob("*"):
+                    cbz.write(file_path, file_path.relative_to(chapter_dir_path))
 
     def _assemble_complete_cbz(
-        self, chapters: list[WeebChapter], title: str, start_chapter: str, end_chapter: str
+        self,
+        chapters: list[WeebChapter],
+        metadata: WeebSeriesMetadata,
+        start_chapter: str,
+        end_chapter: str,
     ):
         self._log_message("Assembling CBZ")
 
         # set cbz filename based on chapter selection
         if not start_chapter and not end_chapter:
-            complete_cbz_name = self._get_chapter_output_str(title=title)
+            complete_cbz_name = self._get_chapter_output_str(title=metadata.title_sanitized)
         else:
             complete_cbz_name = self._get_chapter_output_str(
-                title=title,
+                title=metadata.title_sanitized,
                 start=start_chapter or chapters[0].num,
                 end=end_chapter or chapters[-1].num,
                 total_chapters=len(chapters),
@@ -410,6 +487,8 @@ class WeebDownloader:
                 for chapter_image_path in chapter_dir_path.glob("*"):
                     if chapter_image_path.is_file():
                         cbz.write(chapter_image_path, chapter_image_path.relative_to(cwd))
+
+            cbz.writestr("ComicInfo.xml", metadata.to_comicinfo())
 
     def _download(
         self,
@@ -488,18 +567,20 @@ class WeebDownloader:
         # assemble output from images
         match output_format:
             case WeebOutputFormat.PDF:
-                self._assemble_pdfs(chapters, series_metadata.title_sanitized)
+                self._assemble_pdfs(chapters, series_metadata)
                 self._assemble_complete_pdf(
                     chapters,
-                    series_metadata.title_sanitized,
+                    series_metadata,
                     start_chapter,
                     end_chapter,
                 )
 
                 self._log_message("Deleting intermediate images and PDFs")
                 for chapter in chapters:
-                    # dir_path_str = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
-                    # self._delete_dir(Path(dir_path_str))
+                    dir_path_str = self._get_chapter_output_str(
+                        num=chapter.num, total_chapters=len(chapters)
+                    )
+                    self._delete_dir(Path(dir_path_str))
 
                     # delete intermedia chapter pdfs
                     pdf_filename = self._get_chapter_output_str(
@@ -510,20 +591,20 @@ class WeebDownloader:
                     os.unlink(f"{pdf_filename}.pdf")
 
             case WeebOutputFormat.PDF_PER_CHAPTER:
-                self._assemble_pdfs(chapters, series_metadata.title_sanitized)
+                self._assemble_pdfs(chapters, series_metadata)
 
-                # self._log_message("Deleting intermediate images")
-                # for chapter in chapters:
-                #     dir_path_str = self._get_chapter_output_str(num=chapter.num, total_chapters=len(chapters))
-                #     self._delete_dir(Path(dir_path_str))
+                self._log_message("Deleting intermediate images")
+                for chapter in chapters:
+                    dir_path_str = self._get_chapter_output_str(
+                        num=chapter.num, total_chapters=len(chapters)
+                    )
+                    self._delete_dir(Path(dir_path_str))
 
             case WeebOutputFormat.CBZ:
-                self._assemble_complete_cbz(
-                    chapters, series_metadata.title_sanitized, start_chapter, end_chapter
-                )
+                self._assemble_complete_cbz(chapters, series_metadata, start_chapter, end_chapter)
 
             case WeebOutputFormat.CBZ_PER_CHAPTER:
-                self._assemble_cbzs(chapters, series_metadata.title_sanitized)
+                self._assemble_cbzs(chapters, series_metadata)
 
             case WeebOutputFormat.IMAGES:
                 pass
