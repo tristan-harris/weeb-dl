@@ -157,7 +157,7 @@ class WeebDownloader:
         self._log_message("Requesting series metadata")
         response = self._get_response(f"{WEEB_BASE_URL}/series/{series_id}")
 
-        soup: BeautifulSoup = BeautifulSoup(response.text, "html.parser")
+        soup = BeautifulSoup(response.text, "html.parser")
 
         # get series title
         title_h1 = soup.find("h1")
