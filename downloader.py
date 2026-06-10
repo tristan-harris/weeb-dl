@@ -574,31 +574,8 @@ class WeebDownloader:
                     start_chapter,
                     end_chapter,
                 )
-
-                self._log_message("Deleting intermediate images and PDFs")
-                for chapter in chapters:
-                    dir_path_str = self._get_chapter_output_str(
-                        num=chapter.num, total_chapters=len(chapters)
-                    )
-                    self._delete_dir(Path(dir_path_str))
-
-                    # delete intermedia chapter pdfs
-                    pdf_filename = self._get_chapter_output_str(
-                        title=series_metadata.title_sanitized,
-                        num=chapter.num,
-                        total_chapters=len(chapters),
-                    )
-                    os.unlink(f"{pdf_filename}.pdf")
-
             case WeebOutputFormat.PDF_PER_CHAPTER:
                 self._assemble_pdfs(chapters, series_metadata)
-
-                self._log_message("Deleting intermediate images")
-                for chapter in chapters:
-                    dir_path_str = self._get_chapter_output_str(
-                        num=chapter.num, total_chapters=len(chapters)
-                    )
-                    self._delete_dir(Path(dir_path_str))
 
             case WeebOutputFormat.CBZ:
                 self._assemble_complete_cbz(chapters, series_metadata, start_chapter, end_chapter)
@@ -608,6 +585,27 @@ class WeebDownloader:
 
             case WeebOutputFormat.IMAGES:
                 pass
+
+        # clean up images
+        if output_format != WeebOutputFormat.IMAGES:
+            self._log_message("Deleting intermediate images")
+            for chapter in chapters:
+                dir_path_str = self._get_chapter_output_str(
+                    num=chapter.num, total_chapters=len(chapters)
+                )
+                self._delete_dir(Path(dir_path_str))
+
+        # clean up intermediate PDFs
+        if output_format == WeebOutputFormat.PDF:
+            self._log_message("Deleting intermediate PDFs")
+
+            for chapter in chapters:
+                pdf_filename = self._get_chapter_output_str(
+                    title=series_metadata.title_sanitized,
+                    num=chapter.num,
+                    total_chapters=len(chapters),
+                )
+                os.unlink(f"{pdf_filename}.pdf")
 
         self._completion_message(series_metadata.title)
 
