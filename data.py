@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+import util
+
+WEEB_VERSION = "0.0.1"
+
 
 class WeebOutputFormat(StrEnum):
     PDF = "PDF"

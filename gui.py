@@ -17,8 +17,6 @@ from data import *
 from downloader import WeebDownloader
 from settings import WeebSettingsManager
 
-WEEB_VERSION = "0.0.1"
-
 WEEB_TITLE = "weeb-dl"
 WEEB_THEME = "superhero"
 WEEB_MIN_SIZE = (200, 850)
