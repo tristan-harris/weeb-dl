@@ -241,7 +241,7 @@ class WeebGUI(tb.Frame):
         )
 
         tb.Button(
-            master=download_row, text="📁 Browse", cursor="hand2", command=self.choose_download_dir
+            master=download_row, text="Browse", cursor="hand2", command=self.choose_download_dir
         ).grid(column=6, row=1, sticky=E)
 
         buttons_frame = tb.Frame(master=download_row, padding=(0, 10, 0, 0))
@@ -249,7 +249,7 @@ class WeebGUI(tb.Frame):
 
         tb.Button(
             master=buttons_frame,
-            text="⬇️ Download",
+            text="Download",
             cursor="hand2",
             command=self.start_download,
             bootstyle=SUCCESS,
@@ -257,7 +257,7 @@ class WeebGUI(tb.Frame):
 
         self.cancel_button = tb.Button(
             master=buttons_frame,
-            text="❌ Cancel",
+            text="Cancel",
             cursor="hand2",
             command=self.end_download,
             state=DISABLED,
