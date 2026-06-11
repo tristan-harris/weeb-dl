@@ -19,6 +19,8 @@ from .data import *
 from .downloader import WeebDownloader
 from .settings import WeebSettingsManager
 
+BASE_DIR = Path(__file__).resolve().parent
+
 WEEB_TITLE = "weeb-dl"
 WEEB_THEME = "superhero"
 WEEB_MIN_SIZE = (420, 725)
@@ -542,7 +544,7 @@ def main():
         themename=WEEB_THEME,
         size=WEEB_SIZE,
         minsize=WEEB_MIN_SIZE,
-        iconphoto=str(Path("assets", "icon", "app_icon.png")),
+        iconphoto=str(Path(BASE_DIR, "assets", "icon", "app_icon.png")),
     )
     WeebGUI(root)
     root.mainloop()
