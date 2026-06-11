@@ -18,6 +18,9 @@ dependencies = [
     "ttkbootstrap>=1.20.3",
 ]
 
+[project.urls]
+Homepage = "https://github.com/tristan-harris/weeb-dl"
+
 [project.scripts]
 weebdl-cli = "weeb_dl.cli:main"
 
