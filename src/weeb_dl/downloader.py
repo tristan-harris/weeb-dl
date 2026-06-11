@@ -12,7 +12,7 @@ import requests
 from bs4 import BeautifulSoup
 from PIL import Image
 
-from . import util
+from . import __version__, util
 from .data import *
 
 WEEB_BASE_URL = "https://weebcentral.com"
@@ -395,7 +395,7 @@ class WeebDownloader:
             # set metadata of chapter PDF
             with pikepdf.open(pdf_file_name) as pdf:
                 with pdf.open_metadata() as pdf_metadata:
-                    pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{WEEB_VERSION}"
+                    pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{__version__}"
                     pdf_metadata["xmp:Producer"] = "pikepdf"
 
             for img in img_list:
@@ -421,7 +421,7 @@ class WeebDownloader:
             chapter_pdf.close()
 
         with complete_pdf.open_metadata() as pdf_metadata:
-            pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{WEEB_VERSION}"
+            pdf_metadata["xmp:CreatorTool"] = f"weeb-dl v{__version__}"
             pdf_metadata["xmp:Producer"] = "pikepdf"
 
         # set final pdf filename based on chapter selection
