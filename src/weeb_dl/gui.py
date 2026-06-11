@@ -12,6 +12,8 @@ from ttkbootstrap.dialogs import Messagebox, MessageDialog
 from ttkbootstrap.icons import Icon
 from ttkbootstrap.widgets.scrolled import ScrolledText
 
+from weeb_dl import __version__
+
 from . import util
 from .data import *
 from .downloader import WeebDownloader
@@ -105,7 +107,7 @@ class WeebGUI(tb.Frame):
         self.master.bind("<Control-q>", lambda _: self.window_close())
 
     def create_header_row(self) -> tb.Frame:
-        """Add frame containing weeb-dl title and version text"""
+        """Add frame containing weeb-dl title text"""
 
         header_row = tb.Frame(master=self)
         header_row.grid(column=0, row=0, sticky=(E, W))
@@ -538,7 +540,7 @@ class WeebGUI(tb.Frame):
 
 def main():
     root = tb.Window(
-        title=f"{WEEB_TITLE} v{WEEB_VERSION}",
+        title=f"{WEEB_TITLE} v{__version__}",
         themename=WEEB_THEME,
         size=WEEB_SIZE,
         minsize=WEEB_MIN_SIZE,

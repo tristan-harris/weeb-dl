@@ -3,8 +3,6 @@ from enum import StrEnum
 
 from . import util
 
-WEEB_VERSION = "1.0"
-
 
 class WeebOutputFormat(StrEnum):
     PDF = "PDF"

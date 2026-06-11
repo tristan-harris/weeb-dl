@@ -1,6 +1,6 @@
 [project]
 name = "weeb-dl"
-version = "1.0"
+version = "1.0.0"
 description = "A tool to download manga/manhwa/manhua from weebcentral.com"
 readme = "README.md"
 license = "MIT"
