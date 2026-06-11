@@ -1,7 +1,7 @@
 [project]
 name = "weeb-dl"
 version = "1.0"
-description = "Download manga/manhwa/manhua from weebcentral.com"
+description = "A tool to download manga/manhwa/manhua from weebcentral.com"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.14.3",
