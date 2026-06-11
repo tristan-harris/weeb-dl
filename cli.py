@@ -3,21 +3,13 @@ import os
 import queue
 from threading import Thread
 
-import colorama
-
 import util
 from data import *
 from downloader import RECOMMENDED_MAX_CHAPTER_NUM, WeebDownloader
 
-RESET = "\x1b[0m"
-RED = "\x1b[31m"
-GREEN = "\x1b[32m"
-YELLOW = "\x1b[33m"
-
 
 class WeebCLI:
     def __init__(self):
-        colorama.just_fix_windows_console()  # make ANSI sequences work on Windows
         arguments = self.parse_arguments()
 
         self.series: str = arguments.series
@@ -31,15 +23,15 @@ class WeebCLI:
         )
 
         if not util.is_valid_series(self.series):
-            print(f"{RED}Error: '{self.series}' is not a valid ID/URL{RESET}")
+            print(f"Error: '{self.series}' is not a valid ID/URL")
             exit()
 
         if self.start_chapter and not util.is_num(self.start_chapter):
-            print(f"{RED}Error: '{self.start_chapter}' is not a valid chapter number{RESET}")
+            print(f"Error: '{self.start_chapter}' is not a valid chapter number")
             exit()
 
         if self.end_chapter and not util.is_num(self.end_chapter):
-            print(f"{RED}Error: '{self.end_chapter}' is not a valid chapter number{RESET}")
+            print(f"Error: '{self.end_chapter}' is not a valid chapter number")
             exit()
 
         self.download_thread: Thread | None = None
@@ -149,7 +141,7 @@ class WeebCLI:
             return
 
         if isinstance(message, ErrorMessage):
-            print(f"{RED}{message.text}{RESET}")
+            print(f"{message.text}")
             exit(1)
 
         if isinstance(message, SelectionConfirmationMessage):
@@ -167,7 +159,7 @@ class WeebCLI:
                     "Download Complete", f"weeb-dl has finished downloading '{message.title}'"
                 )
 
-            print(f"{GREEN}Done{RESET}")
+            print("Done")
             exit()
 
 

@@ -5,7 +5,6 @@ description = "Download manga/manhwa/manhua from weebcentral.com"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.14.3",
-    "colorama>=0.4.6",
     "notify-py>=0.3.43",
     "pikepdf>=10.7.2",
     "platformdirs>=4.10.0",
