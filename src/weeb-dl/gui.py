@@ -7,15 +7,14 @@ from threading import Thread
 from tkinter import filedialog
 
 import ttkbootstrap as tb
-from ttkbootstrap.constants import *
-from ttkbootstrap.dialogs import Messagebox, MessageDialog
-from ttkbootstrap.icons import Icon
-from ttkbootstrap.widgets.scrolled import ScrolledText
-
 import util
 from data import *
 from downloader import WeebDownloader
 from settings import WeebSettingsManager
+from ttkbootstrap.constants import *
+from ttkbootstrap.dialogs import Messagebox, MessageDialog
+from ttkbootstrap.icons import Icon
+from ttkbootstrap.widgets.scrolled import ScrolledText
 
 WEEB_TITLE = "weeb-dl"
 WEEB_THEME = "superhero"
@@ -536,7 +535,7 @@ class WeebGUI(tb.Frame):
         self.download_progress_str.set(f"{self.download_progress.get()}%")
 
 
-if __name__ == "__main__":
+def main():
     root = tb.Window(
         title=f"{WEEB_TITLE} v{WEEB_VERSION}",
         themename=WEEB_THEME,
@@ -546,3 +545,7 @@ if __name__ == "__main__":
     )
     WeebGUI(root)
     root.mainloop()
+
+
+if __name__ == "__main__":
+    main()

@@ -163,6 +163,10 @@ class WeebCLI:
             exit()
 
 
-if __name__ == "__main__":
+def main():
     cli = WeebCLI()
     cli.start_download()
+
+
+if __name__ == "__main__":
+    main()
