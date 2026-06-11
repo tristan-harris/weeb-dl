@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-import util
+from . import util
 
 WEEB_VERSION = "1.0"
 

@@ -5,7 +5,7 @@ from pathlib import Path
 
 from platformdirs import user_config_path, user_downloads_dir
 
-from data import WeebSettings
+from .data import WeebSettings
 
 APP_NAME = "weeb-dl"
 SETTINGS_FILE = "settings.json"

@@ -3,9 +3,9 @@ import os
 import queue
 from threading import Thread
 
-import util
-from data import *
-from downloader import RECOMMENDED_MAX_CHAPTER_NUM, WeebDownloader
+from . import util
+from .data import *
+from .downloader import RECOMMENDED_MAX_CHAPTER_NUM, WeebDownloader
 
 
 class WeebCLI:

@@ -7,14 +7,15 @@ from threading import Thread
 from tkinter import filedialog
 
 import ttkbootstrap as tb
-import util
-from data import *
-from downloader import WeebDownloader
-from settings import WeebSettingsManager
 from ttkbootstrap.constants import *
 from ttkbootstrap.dialogs import Messagebox, MessageDialog
 from ttkbootstrap.icons import Icon
 from ttkbootstrap.widgets.scrolled import ScrolledText
+
+from . import util
+from .data import *
+from .downloader import WeebDownloader
+from .settings import WeebSettingsManager
 
 WEEB_TITLE = "weeb-dl"
 WEEB_THEME = "superhero"

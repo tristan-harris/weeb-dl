@@ -12,8 +12,8 @@ import requests
 from bs4 import BeautifulSoup
 from PIL import Image
 
-import util
-from data import *
+from . import util
+from .data import *
 
 WEEB_BASE_URL = "https://weebcentral.com"
 
