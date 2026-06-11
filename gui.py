@@ -19,9 +19,8 @@ from settings import WeebSettingsManager
 
 WEEB_TITLE = "weeb-dl"
 WEEB_THEME = "superhero"
-WEEB_MIN_SIZE = (200, 850)
+WEEB_MIN_SIZE = (420, 725)
 WEEB_SIZE = (700, 850)
-WEEB_MAX_SIZE = (700, 850)
 
 
 class WeebChapterSelection(StrEnum):
@@ -219,10 +218,10 @@ class WeebGUI(tb.Frame):
             cursor="hand2",
             variable=self.notify_upon_completion,
         )
-        notify_checkbutton.grid(column=1, row=1, sticky=W)
+        notify_checkbutton.grid(column=1, row=1, padx=(10, 0), sticky=W)
 
         config_row.columnconfigure(0, weight=1)
-        config_row.columnconfigure(1, weight=10)
+        config_row.columnconfigure(1, weight=10000)
         config_row.rowconfigure(0, weight=1)
         config_row.rowconfigure(1, weight=1)
 
@@ -543,7 +542,6 @@ if __name__ == "__main__":
         themename=WEEB_THEME,
         size=WEEB_SIZE,
         minsize=WEEB_MIN_SIZE,
-        maxsize=WEEB_MAX_SIZE,
         iconphoto=str(Path("assets", "icon", "app_icon.png")),
     )
     WeebGUI(root)
