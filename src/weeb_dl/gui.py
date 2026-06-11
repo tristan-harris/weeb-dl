@@ -427,7 +427,7 @@ class WeebGUI(tb.Frame):
                 self.output_format.get(),
                 self.download_dir.get(),
             ),
-            daemon=True,
+            daemon=False,
         )
         self.downloader_thread.start()
 

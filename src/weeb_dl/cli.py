@@ -131,7 +131,7 @@ class WeebCLI:
                 self.settings.output_format,
                 self.settings.download_dir,
             ),
-            daemon=True,
+            daemon=False,
         )
         self.download_thread.start()
 
