@@ -3,7 +3,7 @@ from enum import StrEnum
 
 import util
 
-WEEB_VERSION = "0.0.1"
+WEEB_VERSION = "1.0"
 
 
 class WeebOutputFormat(StrEnum):
