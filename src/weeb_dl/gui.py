@@ -351,7 +351,8 @@ class WeebGUI(tb.Frame):
             )
             dialog.show()
             if dialog.result == "Confirm":
-                # TODO: end thread first?
+                self.downloader.stop()
+                self.downloader_thread.join(timeout=3)
                 self.master.destroy()
         else:
             self.master.destroy()
