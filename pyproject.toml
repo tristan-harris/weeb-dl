@@ -18,6 +18,16 @@ dependencies = [
     "ttkbootstrap>=1.20.3",
 ]
 
+[project.scripts]
+weeb-dl-cli = "weeb_dl.cli:main"
+
+[project.gui-scripts]
+weeb-dl-gui = "weeb_dl.gui:main"
+
+[build-system]
+requires = ["uv_build>=0.11.8,<0.12.0"]
+build-backend = "uv_build"
+
 [tool.ruff]
 line-length = 100
 
