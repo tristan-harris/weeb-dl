@@ -108,7 +108,7 @@ class WeebCLI:
             case "images":
                 return WeebOutputFormat.IMAGES
             case _:
-                raise Exception(f"Invalid output argument '{output_arg}")
+                raise Exception(f"Error: Invalid output argument '{output_arg}")
 
     def start_download(self):
         message_queue = queue.SimpleQueue()

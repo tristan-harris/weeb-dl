@@ -18,7 +18,6 @@ class WeebSettingsManager:
         self.settings = WeebSettings(download_dir=user_downloads_dir())
 
     def load(self, error_message_fn: Callable[[str], None]) -> WeebSettings:
-
         if self.config_file_path.exists():
             try:
                 data = json.loads(self.config_file_path.read_text(encoding="utf-8"))
