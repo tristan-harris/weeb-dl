@@ -12,9 +12,7 @@ from ttkbootstrap.dialogs import Messagebox, MessageDialog
 from ttkbootstrap.icons import Icon
 from ttkbootstrap.widgets.scrolled import ScrolledText
 
-from weeb_dl import __version__
-
-from . import util
+from . import __version__, util
 from .data import *
 from .downloader import WeebDownloader
 from .settings import WeebSettingsManager
