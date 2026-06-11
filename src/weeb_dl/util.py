@@ -40,6 +40,7 @@ def send_notification(title: str, message: str):
     notification = Notify()
     notification.title = title
     notification.message = message
+    notification.application_name = "weeb-dl"
     notification.icon = Path(BASE_DIR, "assets", "icon", "app_icon.png")
     notification.send(block=False)
 
