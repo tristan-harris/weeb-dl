@@ -3,7 +3,7 @@ import os
 import queue
 from threading import Thread
 
-from . import util
+from . import __version__, util
 from .data import *
 from .downloader import RECOMMENDED_MAX_CHAPTER_NUM, WeebDownloader
 
@@ -87,6 +87,13 @@ class WeebCLI:
             default=False,
             action="store_true",
             help="send notification upon completing download (default is false)",
+        )
+        parser.add_argument(
+            "-v",
+            "--version",
+            action="version",
+            version=f"weeb-dl {__version__}",
+            help="print version and exit",
         )
         parser.add_argument(
             "series",
