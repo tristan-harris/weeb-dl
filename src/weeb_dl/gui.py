@@ -48,11 +48,6 @@ class WeebGUI(tb.Frame):
 
         #  === APPLICATION VARIABLES ===
         self.series = tb.StringVar()
-        self.series.set(
-            "https://weebcentral.com/series/01J76XYDGDQERFSK333582BNBZ/Sousou-no-Frieren"
-        )
-        # self.series.set("https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK/One-Piece")
-        # self.series.set("https://weebcentral.com/series/01J76XY9WR4RCP6SS3A96Y8EK2/Log-Horizon")
         self.series.trace_add("write", self._series_updated)
 
         self.output_format = tb.StringVar(value=self.settings.output_format)
