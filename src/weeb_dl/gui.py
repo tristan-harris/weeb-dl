@@ -1,4 +1,4 @@
-"""Provides tkinter GUI that starts and provides configuration to a downloader thread"""
+"""tkinter GUI that starts and provides configuration to downloader"""
 
 import math
 import queue

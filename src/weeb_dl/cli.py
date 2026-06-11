@@ -1,4 +1,4 @@
-"""Provides CLI to start and configure downloader with"""
+"""CLI to configure and run downloader"""
 
 import argparse
 import os
