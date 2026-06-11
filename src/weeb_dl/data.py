@@ -1,3 +1,5 @@
+"""Contains data-related classes"""
+
 from dataclasses import dataclass
 from enum import StrEnum
 

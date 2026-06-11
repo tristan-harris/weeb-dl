@@ -1,3 +1,5 @@
+"""Used to store and retrieve persistent settings from a JSON file"""
+
 import json
 import queue
 from dataclasses import asdict

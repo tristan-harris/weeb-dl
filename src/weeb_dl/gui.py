@@ -1,3 +1,5 @@
+"""Provides tkinter GUI that starts and provides configuration to a downloader thread"""
+
 import math
 import queue
 import tkinter as ttk
@@ -223,6 +225,7 @@ class WeebGUI(tb.Frame):
         return config_row
 
     def create_download_row(self) -> tb.Labelframe:
+        """Add frame containing widgets related to downloading"""
         download_row = tb.Labelframe(master=self, text=" Download ", padding=10)
         download_row.grid(column=0, row=4, sticky=(E, W))
 
@@ -334,7 +337,9 @@ class WeebGUI(tb.Frame):
             entry_widget.configure(bootstyle=DANGER)
 
     def window_close(self):
-        # if currently downloading
+        """Called when users closes GUI (e.g. cross button, Alt+F4, Control+Q binding)"""
+
+        # if currently downloading, warn user
         if self.downloader_thread:
             dialog = MessageDialog(
                 title="Confirm exit",

@@ -1,3 +1,5 @@
+"""Provides CLI to start and configure downloader with"""
+
 import argparse
 import os
 import queue

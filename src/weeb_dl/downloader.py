@@ -1,3 +1,5 @@
+"""Handles downloading and output assembly"""
+
 import os
 import queue
 import random
@@ -53,7 +55,7 @@ class WeebDownloader:
         self.session.headers.update(headers)
 
     def _get_response(self, url: str, params: dict | None = None) -> requests.Response:  # ty: ignore[invalid-return-type]
-        """Make a GET request with retries, exponential backoff + jitter."""
+        """Make a GET request with retries, exponential backoff + jitter"""
         for attempt in range(REQUESTS_MAX_RETRIES):
             try:
                 response = self.session.get(
@@ -97,6 +99,7 @@ class WeebDownloader:
         end: str = "",
         total_chapters: int = 0,
     ) -> str:
+        """Get a string structured differently depending on provided arguments"""
 
         chapter_digits = util.number_digits(total_chapters)
 
@@ -123,7 +126,7 @@ class WeebDownloader:
         return output_str
 
     def _delete_dir(self, path: Path):
-        """Recursively delete directory"""
+        """Recursively delete given directory"""
         self._log_message(f"Deleting folder '{path}'")
 
         if not path.exists():
@@ -145,6 +148,7 @@ class WeebDownloader:
     def _selection_confirm_message(
         self, num_chapters: int, num_chapters_recommended: int, series_title: str
     ):
+        """When the user wants to download an overly large range of chapters"""
         self.message_queue.put(
             SelectionConfirmationMessage(num_chapters, num_chapters_recommended, series_title)
         )
@@ -156,6 +160,7 @@ class WeebDownloader:
         self.message_queue.put(CompletionMessage(title))
 
     def _get_series_metadata(self, series_id: str) -> WeebSeriesMetadata:
+        """Extract metadata from HTML of base series page"""
         self._log_message("Requesting series metadata")
 
         url = f"{WEEB_BASE_URL}/series/{series_id}"
@@ -371,6 +376,8 @@ class WeebDownloader:
                 exit()
 
     def _assemble_pdfs(self, chapters: list[WeebChapter], metadata: WeebSeriesMetadata):
+        """Assemble a PDF file from each chapter directory of images"""
+
         for chapter in chapters:
             self._log_message(f"Assembling PDF for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -409,6 +416,8 @@ class WeebDownloader:
         start_chapter: str,
         end_chapter: str,
     ):
+        """Assemble final PDF by merging each chapter PDF"""
+
         self._log_message("Assembling final PDF")
 
         complete_pdf = pikepdf.Pdf.new()
@@ -438,6 +447,8 @@ class WeebDownloader:
         complete_pdf.save(f"{complete_pdf_name}.pdf")
 
     def _assemble_cbzs(self, chapters: list[WeebChapter], metadata: WeebSeriesMetadata):
+        """Create a CBZ (zip file) for each chapter directory of images"""
+
         for chapter in chapters:
             self._log_message(f"Assembling CBZ for {self._get_chapter_output_str(num=chapter.num)}")
 
@@ -463,6 +474,7 @@ class WeebDownloader:
         start_chapter: str,
         end_chapter: str,
     ):
+        """Create a single CBZ (zip file) from each chapter directory of images"""
         self._log_message("Assembling CBZ")
 
         # set cbz filename based on chapter selection
@@ -498,6 +510,8 @@ class WeebDownloader:
         output_format: WeebOutputFormat,
         download_dir: str,
     ):
+        """Main download logic"""
+
         self.confirm_event.clear()
         self.stop_event.clear()
 
@@ -624,8 +638,10 @@ class WeebDownloader:
             exit(1)
 
     def confirm(self):
+        """User has confirmed they want to download large range of chapters"""
         self.confirm_event.set()
 
     def stop(self):
+        """User wants to stop download"""
         self.stop_event.set()
         self._log_message("Download canceled")

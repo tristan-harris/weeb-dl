@@ -1,3 +1,5 @@
+"""Various miscellaneous utility functions"""
+
 import platform
 import re
 from pathlib import Path
@@ -15,6 +17,10 @@ WINDOWS_ILLEGAL_FILENAME_CHARACTERS_REGEX = r'[<>:"/\\|?*\x00-\x1f]'
 
 
 def is_valid_series(series: str) -> bool:
+    """
+    Series being an ID (e.g. 01J76XYDGDQERFSK333582BNBZ), or an entire URL
+    (e.g. https://weebcentral.com/series/01J76XYDGDQERFSK333582BNBZ/Sousou-no-Frieren)
+    """
     if re.match(f"^{SERIES_ID_REGEX}$", series):
         return True
     if re.match(SERIES_URL_REGEX, series):
@@ -30,6 +36,7 @@ def get_id_from_series_url(series_url: str) -> str | None:
 
 
 def sanitize_series_title(title: str) -> str:
+    """Makes title suitable for file naming"""
     if platform.system() == "Windows":
         title = re.sub(WINDOWS_ILLEGAL_FILENAME_CHARACTERS_REGEX, "", title)
     title = title.strip()
@@ -37,6 +44,7 @@ def sanitize_series_title(title: str) -> str:
 
 
 def send_notification(title: str, message: str):
+    """Send desktop notification"""
     notification = Notify()
     notification.title = title
     notification.message = message
