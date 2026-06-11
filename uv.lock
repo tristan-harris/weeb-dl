@@ -290,7 +290,7 @@ wheels = [
 [[package]]
 name = "weeb-dl"
 version = "1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "notify-py" },
