@@ -43,7 +43,7 @@ class WeebGUI(tb.Frame):
         self.downloader = WeebDownloader(self.message_queue)
 
         self.settings_manager = WeebSettingsManager()
-        self.settings_manager.load(print)
+        self.settings_manager.load(self.message_queue)
         self.settings = self.settings_manager.settings
 
         #  === APPLICATION VARIABLES ===
@@ -306,7 +306,7 @@ class WeebGUI(tb.Frame):
         self.settings.output_format = WeebOutputFormat(self.output_format.get())
         self.settings.notify_on_completion = self.notify_upon_completion.get()
         self.settings.download_dir = self.download_dir.get()
-        self.settings_manager.save(print)
+        self.settings_manager.save(self.message_queue)
 
     def _start_chapter_updated(self, *_args):
         if self.start_chapter_entry:
