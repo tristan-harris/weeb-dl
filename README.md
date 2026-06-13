@@ -2,7 +2,7 @@
 
 A tool to download manga/manhwa/manhua from [weebcentral.com](https://weebcentral.com) (use an adblocker).
 
-<img src="meta/images/weeb_dl_showcase.png" width="900"/>
+![Screenshot](meta/images/weeb_dl_showcase.png)
 
 ## Features
 
