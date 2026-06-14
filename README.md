@@ -44,3 +44,5 @@ uv sync # update project's environment
 uv run weebdl-cli # run weeb-dl via CLI
 uv run weebdl-gui # run weeb-dl via GUI
 ```
+
+Additionally, the language server [ty](https://docs.astral.sh/ty) and the formatter [ruff](https://docs.astral.sh/ruff) are used.
