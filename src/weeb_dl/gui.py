@@ -81,6 +81,8 @@ class WeebGUI(tb.Frame):
         self.cancel_button: tb.Button | None = None
         self.log_messages: ScrolledText | None = None
 
+        self.create_links()
+
         self.header_row = self.create_header_row()
         self.series_id_row = self.create_series_id_row()
         self.selection_row = self.create_selection_row()
@@ -102,6 +104,21 @@ class WeebGUI(tb.Frame):
         self.columnconfigure(0, weight=1)
 
         self.master.bind("<Control-q>", lambda _: self.window_close())
+
+    def create_links(self):
+        """Create 'link' Labels at top left of window"""
+
+        github_link = tb.Label(
+            self.master,
+            text="Github",
+            cursor="hand2",
+            bootstyle=PRIMARY,
+            font=("TkDefaultFont", 10, "underline"),
+        )
+        github_link.grid(column=0, row=0, padx=3, pady=3, sticky=(N, W))
+        github_link.bind(
+            "<Button-1>", lambda _: webbrowser.open("https://github.com/tristan-harris/weeb-dl")
+        )
 
     def create_header_row(self) -> tb.Frame:
         """Add frame containing weeb-dl title text"""
